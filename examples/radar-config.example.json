@@ -1,0 +1,7 @@
+{
+  "direction": "llm-pretraining-data",
+  "keywords": ["pretraining data", "data curation", "data selection"],
+  "orgs": ["QwenLM", "deepseek-ai", "zai-org", "THUDM"],
+  "paperMax": 30,
+  "dataDir": "talent-research/_radar"
+}

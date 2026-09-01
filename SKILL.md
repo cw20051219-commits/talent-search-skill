@@ -252,6 +252,21 @@ node scripts/gen_excel.mjs candidates.json 输出路径.xlsx
 3. **判定合入**：recall ≥ 及格线且字段准确率不低于上次记录，改动才可合入；不达标则修正后重测。脚本用法与指标口径详见脚本头部注释
 4. **留痕**：每次评测记入 `talent-research/_eval/记录.md`（日期、recall、字段准确率、改动摘要），作为「进化不退步」的证据链
 
+## 主动雷达（定时监控，可选）
+
+把「被问才查」升级为「定时扫描」：配置一次，每周自动产出增量人才信号报告。
+
+1. **配置**：复制 `examples/radar-config.example.json` 为 `<工作区>/talent-research/_radar/config.json`，填方向标签、论文检索关键词（英文短语）、目标 GitHub org 列表
+2. **运行**（工作区根目录为 cwd）：
+
+   ```bash
+   node scripts/radar_scan.mjs talent-research/_radar/config.json
+   ```
+
+   首次运行建立基线；此后每次为增量 diff，报告落盘 `talent-research/_radar/radar-YYYY-MM-DD.md`：GitHub org 新增公开成员（人才流动信号）+ OpenAlex 方向新论文（含一作与机构，一作即候选线索）
+3. **定时**：用宿主的定时任务能力（cron / automation）每周运行一次。跑完后把报告中的新信号按单轮验证流程快速核实、upsert 进候选人库，相关经验（哪个 org/关键词信号密度高）写进 `_lessons/`
+4. **边界**：只扫公开信息（GitHub public members、OpenAlex 公开元数据）；GitHub 未认证 API 限额 60 次/小时，org 数量保持克制；论文通道用 OpenAlex 而非 arXiv API（后者 https 在部分网络不可达）
+
 ## 数据质量底线
 
 - 一手来源优先：搜索引擎只用于发现线索，核实必须回到官网/主页/论文/GitHub 原文

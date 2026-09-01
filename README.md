@@ -13,7 +13,8 @@
 5. **候选人库（越用越厚）**：每轮检索结果沉淀到 `talent-research/_db/candidates.jsonl`，下轮同方向任务先查库做增量更新——90 天内验证过的直接复用、作废过的不再重复挖掘。配套 `db_upsert.mjs` 提供 upsert / search / stats 三个零依赖命令
 6. **经验自动沉淀（自我改进）**：每轮任务结束自动复盘，把源有效性、作废模式、网络坑、流程改进追加到 `talent-research/_lessons/` 月度文件，下轮开工先读最近两月经验并调整检索策略——skill 在使用中持续进化
 7. **评测基准（进化的刹车）**：内置 `eval_recall.mjs`，用 golden set 对每次改版打分——recall 及格线 0.8、学历/现职字段准确率不回退，改版才允许合入，防止「自我进化」变成「自我漂移」
-8. **学历门槛判定**：内置 C9 / 港校 / 海外院校分级对照表与知名实验室判定标准
+8. **主动雷达（定时监控）**：`radar_scan.mjs` 每周扫描目标公司 GitHub org 成员变动 + OpenAlex 方向新论文（含一作与机构），增量信号自动成报告——从「被问才查」变成「主动人才雷达」
+9. **学历门槛判定**：内置 C9 / 港校 / 海外院校分级对照表与知名实验室判定标准
 
 ## 工作流程
 
@@ -86,12 +87,14 @@ talent-search-skill/
 ├── scripts/
 │   ├── gen_excel.mjs           # 零依赖 xlsx 生成器（固定 9 列）
 │   ├── db_upsert.mjs           # 零依赖候选人库维护（upsert/search/stats）
-│   └── eval_recall.mjs         # 零依赖 golden set 评测（recall + 字段准确率门禁）
+│   ├── eval_recall.mjs         # 零依赖 golden set 评测（recall + 字段准确率门禁）
+│   └── radar_scan.mjs          # 零依赖主动雷达（GitHub org 成员 + OpenAlex 论文增量扫描）
 └── examples/
     ├── 对标画像.example.md      # 对标画像三段式模板（人物虚构）
     ├── candidates.example.json # Excel 输入数据结构示例
     ├── db-candidates.example.jsonl # 候选人库 schema 示例（人物虚构）
-    └── golden.example.jsonl    # 评测 golden set 格式示例（人物虚构）
+    ├── golden.example.jsonl    # 评测 golden set 格式示例（人物虚构）
+    └── radar-config.example.json # 主动雷达配置示例
 ```
 
 ## 合规声明
