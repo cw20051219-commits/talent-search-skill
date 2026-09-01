@@ -10,7 +10,8 @@
 2. **交叉验证纪律**：每位候选人必须经过至少一遍一手来源验证（单轮验证，必需流程）；关键岗位可启用**五遍验证模式**——学术、GitHub、职业平台、公司一手来源、个人主页五个独立维度互相印证，矛盾时以一手来源为准
 3. **宁缺毋滥**：凑不齐一手来源核实的信息一律标「待核实 / 未获取」，禁止编造；每条关键信息在检索记录中可追溯到来源 URL
 4. **零依赖 Excel 产出**：内置 `gen_excel.mjs`（Node ≥ 18，无需安装任何依赖），固定 9 列：姓名 / 学历 / 实习工作经历 / 个人主页 / GitHub / 一作论文 / 大学实验室经历 / 匹配亮点 / 备注（CV 与联系方式）
-5. **学历门槛判定**：内置 C9 / 港校 / 海外院校分级对照表与知名实验室判定标准
+5. **候选人库（越用越厚）**：每轮检索结果沉淀到 `talent-research/_db/candidates.jsonl`，下轮同方向任务先查库做增量更新——90 天内验证过的直接复用、作废过的不再重复挖掘。配套 `db_upsert.mjs` 提供 upsert / search / stats 三个零依赖命令
+6. **学历门槛判定**：内置 C9 / 港校 / 海外院校分级对照表与知名实验室判定标准
 
 ## 工作流程
 
@@ -54,7 +55,7 @@ git clone https://github.com/cw20051219-commits/talent-search-skill ~/.workbuddy
 
 **其他 Agent 宿主**：把本文件夹复制到你的宿主对应的 skills 目录即可（skill 格式为通用的 `SKILL.md` + frontmatter 规范）。
 
-依赖：Node.js ≥ 18（仅用于生成 Excel，零第三方依赖）。
+依赖：Node.js ≥ 18（仅用于生成 Excel 与维护候选人库，零第三方依赖）。
 
 ## 使用
 
@@ -77,10 +78,12 @@ talent-search-skill/
 │   ├── source-playbook.md      # 四通道检索策略、联系方式获取规则
 │   └── school-list.md          # C9/港校/海外院校分级、知名实验室判定
 ├── scripts/
-│   └── gen_excel.mjs           # 零依赖 xlsx 生成器（固定 9 列）
+│   ├── gen_excel.mjs           # 零依赖 xlsx 生成器（固定 9 列）
+│   └── db_upsert.mjs           # 零依赖候选人库维护（upsert/search/stats）
 └── examples/
     ├── 对标画像.example.md      # 对标画像三段式模板（人物虚构）
-    └── candidates.example.json # Excel 输入数据结构示例
+    ├── candidates.example.json # Excel 输入数据结构示例
+    └── db-candidates.example.jsonl # 候选人库 schema 示例（人物虚构）
 ```
 
 ## 合规声明

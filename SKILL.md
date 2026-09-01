@@ -11,6 +11,7 @@ description: 技术猎头人才检索：为 AI 与量化方向职位全网搜索
 
 1. **Excel 候选清单**（`talent-research/<主题>/candidates-YYYYMMDD.xlsx`）
 2. **检索记录**（同目录 `检索记录.md`，格式模板见第 3 步）
+3. **候选人库**（`talent-research/_db/candidates.jsonl`，跨任务沉淀——每轮检索先查库做增量更新，越用越厚）
 
 ## 环境适配说明
 
@@ -37,6 +38,19 @@ description: 技术猎头人才检索：为 AI 与量化方向职位全网搜索
 | 目标数量 | 默认 20 人，用户可指定 |
 
 对标画像格式范例：`examples/对标画像.example.md`（简历事实提取 + 人物特征 + 检索目标画像三段式）。用户没给文件时，按这个结构先自拟一份画像再检索，并让用户扫一眼确认。
+
+**增量查库（有库必查）**：若 `talent-research/_db/candidates.jsonl` 存在，先查库再撒网：
+
+```bash
+node scripts/db_upsert.mjs talent-research/_db/candidates.jsonl search <方向关键词/公司名/姓名>
+```
+
+按以下规则把本轮任务变成增量更新：
+
+- 库内已有且 `last_verified` 距今 ≤ 90 天 → 直接复用（只补缺失字段），不重复全网检索
+- `last_verified` 超过 90 天（search 结果带 ⚠过期标记）→ 只重新核实现职与工作地点
+- `status` 为 `rejected` 的（含作废原因）→ 本轮跳过，除非用户点名复查
+- 本轮四通道检索的火力集中在库内缺口：新方向、新公司、新毕业年份段
 
 ## 第 1 步：四通道并行检索
 
@@ -127,6 +141,25 @@ description: 技术猎头人才检索：为 AI 与量化方向职位全网搜索
 ```
 
 子代理把核实结果作为最终回复返回主代理，**不要写文件**。
+
+### 回写候选人库（必需）
+
+短名单验证完成后，把**全部**候选人（含作废者）upsert 回共享库 `talent-research/_db/candidates.jsonl`，供后续任务增量复用：
+
+```bash
+node scripts/db_upsert.mjs talent-research/_db/candidates.jsonl upsert <candidates.json>
+```
+
+输入 JSON 与 `gen_excel.mjs` 的 candidates 数组完全兼容，另带库级字段：
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| `direction` | 建议 | 本轮方向标签（如 `llm-pretraining-data`），同方向查库的索引 |
+| `last_verified` | 自动 | 最后验证日期，缺省取当天 |
+| `verify_depth` | 自动 | `single` / `five`，本轮实际执行的验证深度 |
+| `status` | 建议 | `active`（入选）或 `rejected`（作废）；作废须附 `reject_reason`，避免下轮重复挖掘 |
+
+去重键为 GitHub URL > 主页 URL > 姓名（URL 忽略大小写与末尾斜杠）；upsert 时非空新字段覆盖旧字段、空字段保留旧值。schema 详见脚本头部注释与 `examples/db-candidates.example.jsonl`。库含个人信息，已在 `.gitignore` 中排除，**切勿提交进 git**。
 
 ## 第 3 步：产出
 
