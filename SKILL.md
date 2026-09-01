@@ -257,6 +257,27 @@ node scripts/gen_excel.mjs candidates.json 输出路径.xlsx
 把「被问才查」升级为「定时扫描」：配置一次，每周自动产出增量人才信号报告。
 
 1. **配置**：复制 `examples/radar-config.example.json` 为 `<工作区>/talent-research/_radar/config.json`，填方向标签、论文检索关键词（英文短语）、目标 GitHub org 列表
+
+   国内大模型团队 GitHub org 实测速查（org 名错一个字母就扫不到，务必以此为准，填前可再核实）：
+
+   | 团队 | org | 公开成员信号 |
+   |------|-----|------|
+   | 阿里·千问 | `QwenLM` | 强 |
+   | 阿里·魔搭 | `ModelScope` | 弱（~2） |
+   | 阿里·通义实验室 | `Alibaba-NLP` | 中 |
+   | DeepSeek | `deepseek-ai` | 弱（~1） |
+   | 智谱 | `THUDM` / `zai-org` | 强 |
+   | 月之暗面 Kimi | `MoonshotAI` | 弱（~2） |
+   | 腾讯 ARC Lab | `TencentARC` | 中 |
+   | 腾讯混元 | `Tencent-Hunyuan` | 无（成员不公开，保留占位） |
+   | 字节 Seed | `ByteDance-Seed` | 无（成员不公开，保留占位） |
+   | 百度飞桨 | `PaddlePaddle` | 最强（~35） |
+   | 华为诺亚方舟 | `huawei-noah` | 中 |
+   | 华为昇思 | `mindspore-ai`（注意：不是 `mindspore`） | 无（成员不公开，保留占位） |
+   | 美团 | `meituan` | 中 |
+   | 京东 | `jd-opensource` | 中 |
+   | 小红书 | `xiaohongshu-pub` | 极弱（官方基本不用 GitHub） |
+
 2. **运行**（工作区根目录为 cwd）：
 
    ```bash
@@ -265,7 +286,8 @@ node scripts/gen_excel.mjs candidates.json 输出路径.xlsx
 
    首次运行建立基线；此后每次为增量 diff，报告落盘 `talent-research/_radar/radar-YYYY-MM-DD.md`：GitHub org 新增公开成员（人才流动信号）+ OpenAlex 方向新论文（含一作与机构，一作即候选线索）
 3. **定时**：用宿主的定时任务能力（cron / automation）每周运行一次。跑完后把报告中的新信号按单轮验证流程快速核实、upsert 进候选人库，相关经验（哪个 org/关键词信号密度高）写进 `_lessons/`
-4. **边界**：只扫公开信息（GitHub public members、OpenAlex 公开元数据）；GitHub 未认证 API 限额 60 次/小时，org 数量保持克制；论文通道用 OpenAlex 而非 arXiv API（后者 https 在部分网络不可达）
+4. **边界**：只扫公开信息（GitHub public members、OpenAlex 公开元数据）；GitHub 未认证 API 限额 60 次/小时，org 总量控制在 ~20 个以内（每个 org 每轮约 1-2 次请求）；论文通道用 OpenAlex 而非 arXiv API（后者 https 在部分网络不可达）
+5. **弱信号源说明**：部分公司（腾讯混元、字节 Seed、华为昇思）GitHub 成员列表完全不公开，org 抓到 0 人属于正常——保留它们成本几乎为零，一旦未来有人 publicize 成员身份，雷达立刻能捕捉到；小红书官方 GitHub 存在感极低，信号主要靠论文通道补充
 
 ## 数据质量底线
 
