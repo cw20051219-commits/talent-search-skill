@@ -237,6 +237,21 @@ node scripts/gen_excel.mjs candidates.json 输出路径.xlsx
 - 每条注明日期与方向标签
 - 与已有 lesson 冲突的新经验不删旧条目，追加并标注「与 <日期> 条目冲突，本次为准」
 
+## 维护与评测：改版必跑
+
+对本 skill 的任何实质改动（SKILL.md 流程、`references/` 检索策略与经验）合入前，必须先跑评测基准——**没有评测的自我修改等于闭眼开车**：
+
+1. **建 golden set**（一次性，每方向 10–20 人）：从历次已验证的产出中挑选确认无误的候选人，写入 `talent-research/_eval/golden.jsonl`（`.gitignore` 覆盖，不进仓库）。每条含 name + github/homepage + education/current 期望事实，格式见 `examples/golden.example.jsonl`
+2. **跑基准**：对 golden set 覆盖的方向做一次完整裸跑（不启用候选人库增量），拿到 result JSON 后计分：
+
+   ```bash
+   node scripts/eval_recall.mjs talent-research/_eval/golden.jsonl <result.json> [result2.json ...]
+   ```
+
+   指标：recall（及格线默认 0.8，`RECALL_MIN` 环境变量可调）、命中者的学历/现职字段准确率（归一化互含匹配）、misses 名单。不达标退出码为 1
+3. **判定合入**：recall ≥ 及格线且字段准确率不低于上次记录，改动才可合入；不达标则修正后重测。脚本用法与指标口径详见脚本头部注释
+4. **留痕**：每次评测记入 `talent-research/_eval/记录.md`（日期、recall、字段准确率、改动摘要），作为「进化不退步」的证据链
+
 ## 数据质量底线
 
 - 一手来源优先：搜索引擎只用于发现线索，核实必须回到官网/主页/论文/GitHub 原文
