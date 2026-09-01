@@ -1,107 +1,116 @@
 # talent-search-skill
 
-为 AI / 量化岗位做**全网人才寻访**的 Agent Skill —— 输入人才画像或 JD，产出经过交叉验证的 **Excel 候选清单**与完整**检索记录**。
+> An Agent Skill for end-to-end **AI / quant talent sourcing** — input a candidate persona or JD, get back a cross-verified **Excel candidate list** plus a full **search log**.
 
-适用于 Claude Code、WorkBuddy 及任何支持 SKILL.md 规范的 AI Agent 宿主。
+Works with Claude Code, WorkBuddy, and any AI Agent host that follows the `SKILL.md` spec.
 
-## 为什么值得用
+![stars](https://img.shields.io/github/stars/cw20051219-commits/talent-search-skill?style=flat-square)
+![forks](https://img.shields.io/github/forks/cw20051219-commits/talent-search-skill?style=flat-square)
+![license](https://img.shields.io/github/license/cw20051219-commits/talent-search-skill?style=flat-square)
+![last commit](https://img.shields.io/github/last-commit/cw20051219-commits/talent-search-skill?style=flat-square)
 
-1. **四通道并行检索**：学术（论文/课题组/竞赛）、GitHub（开源贡献者）、公司（团队页/技术博客）、社区（知乎/LinkedIn/脉脉公开页）四路线索同时撒网
-2. **交叉验证纪律**：每位候选人必须经过至少一遍一手来源验证（单轮验证，必需流程）；关键岗位可启用**五遍验证模式**——学术、GitHub、职业平台、公司一手来源、个人主页五个独立维度互相印证，矛盾时以一手来源为准
-3. **宁缺毋滥**：凑不齐一手来源核实的信息一律标「待核实 / 未获取」，禁止编造；每条关键信息在检索记录中可追溯到来源 URL
-4. **零依赖 Excel 产出**：内置 `gen_excel.mjs`（Node ≥ 18，无需安装任何依赖），固定 9 列：姓名 / 学历 / 实习工作经历 / 个人主页 / GitHub / 一作论文 / 大学实验室经历 / 匹配亮点 / 备注（CV 与联系方式）
-5. **候选人库（越用越厚）**：每轮检索结果沉淀到 `talent-research/_db/candidates.jsonl`，下轮同方向任务先查库做增量更新——90 天内验证过的直接复用、作废过的不再重复挖掘。配套 `db_upsert.mjs` 提供 upsert / search / stats 三个零依赖命令
-6. **经验自动沉淀（自我改进）**：每轮任务结束自动复盘，把源有效性、作废模式、网络坑、流程改进追加到 `talent-research/_lessons/` 月度文件，下轮开工先读最近两月经验并调整检索策略——skill 在使用中持续进化
-7. **评测基准（进化的刹车）**：内置 `eval_recall.mjs`，用 golden set 对每次改版打分——recall 及格线 0.8、学历/现职字段准确率不回退，改版才允许合入，防止「自我进化」变成「自我漂移」
-8. **主动雷达（定时监控）**：`radar_scan.mjs` 每周扫描目标公司 GitHub org 成员变动 + OpenAlex 方向新论文（含一作与机构），增量信号自动成报告——从「被问才查」变成「主动人才雷达」。内置国内大模型团队 org 速查表（千问/DeepSeek/智谱/Kimi/魔搭/通义/腾讯 ARC·混元/字节 Seed/飞桨/诺亚方舟/昇思/美团/京东/小红书）
-9. **学历门槛判定**：内置 C9 / 港校 / 海外院校分级对照表与知名实验室判定标准
+![demo](assets/demo.gif)
 
-## 工作流程
+## Why use it
+
+1. **Four-channel parallel search** — academia (papers / labs / competitions), GitHub (open-source contributors), company (team pages / tech blogs), community (public pages on Zhihu, LinkedIn, Maimai). All four channels fire at once.
+2. **Cross-verification discipline** — every candidate goes through at least one round of primary-source verification (single-pass, mandatory). For critical roles you can switch on **five-pass verification** — five independent dimensions (academia, GitHub, professional platforms, company primary sources, personal homepage) corroborate each other; conflicts defer to primary sources.
+3. **Better empty than fabricated** — anything not backed by primary sources is marked "to be verified / not obtained". No fabrication. Every key fact is traceable to a source URL in the search log.
+4. **Zero-dependency Excel output** — built-in `gen_excel.mjs` (Node ≥ 18, no third-party packages) writes a fixed 9-column sheet: name / education / internships-and-jobs / personal homepage / GitHub / first-author papers / university-lab experience / match highlights / notes (CV and contact).
+5. **A candidate library that grows with you** — every round's results land in `talent-research/_db/candidates.jsonl`. The next round in the same direction queries the library first for incremental updates: anything verified within 90 days is reused, anything rejected is skipped. Paired with `db_upsert.mjs` (zero-dependency `upsert` / `search` / `stats` commands).
+6. **Self-improving experience** — every round ends with an automatic retrospective. Source effectiveness, rejection patterns, network pitfalls, and process improvements get appended to monthly files in `talent-research/_lessons/`. The next round reads the last two months of lessons and tunes its strategy.
+7. **Evaluation baseline (brake on evolution)** — built-in `eval_recall.mjs` scores every revision against a golden set: recall threshold 0.8; school and current-role field accuracy must not regress. A revision is only allowed to merge if the gate holds — so "self-improvement" can't drift into "self-destruction".
+8. **Proactive radar (scheduled monitoring)** — `radar_scan.mjs` runs weekly, scanning target companies' GitHub org member changes plus OpenAlex new papers (with first-author and institution). Incremental signals auto-compose a report. From "search when asked" to "proactive talent radar". Ships with a built-in lookup table for 16 China-side LLM-team orgs (Qwen / DeepSeek / Zhipu / Kimi / ModelScope / Tongyi / Tencent ARC & Hunyuan / ByteDance Seed / PaddlePaddle / Noah's Ark Lab / MindSpore / Meituan / JD / RedNote / Xiaohongshu).
+9. **School tiering built in** — C9 / Hong Kong / overseas school tier table and well-known-lab criteria are wired in, so the skill can shortlist by school bar without you re-pasting the list.
+
+## Workflow
 
 ```
-画像 / JD
+Persona / JD
    │
    ▼
-第 0 步  解析画像 → 查候选人库（增量复用）→ 读最近两月经验
+Step 0  Parse persona → query candidate library (incremental reuse) → read last two months of lessons
    │
    ▼
-第 1 步  四通道并行检索 ──→ 8–15 条候选线索卡片
+Step 1  Four-channel parallel search  ──→  8–15 candidate lead cards
    │
    ▼
-第 2 步  汇总去重 → 交叉验证 → 回写候选人库
-   │        ├─ 单轮验证（必需）：一手来源核实学历/现职/联系方式
-   │        └─ 五遍验证（可选）：学术/GitHub/职业平台/公司/个人主页
+Step 2  Dedupe + cross-verify → write back to candidate library
+   │        ├─ Single-pass (mandatory): primary-source check on school / current role / contact
+   │        └─ Five-pass (optional): academia / GitHub / professional platform / company / personal homepage
    │
    ▼
-第 3 步  产出 candidates-YYYYMMDD.xlsx + 检索记录.md
+Step 3  Produce candidates-YYYYMMDD.xlsx + search-log.md
    │
    ▼
-第 4 步  复盘沉淀 ──→ 经验追加到 _lessons/，下轮开工复用
+Step 4  Retrospective  ──→  lessons appended to _lessons/, next round reuses them
 ```
 
-## 安装
+## Install
 
-**Claude Code 用户**（个人级，全局可用）：
+**Claude Code** (user-level, available globally):
 
 ```bash
 git clone https://github.com/cw20051219-commits/talent-search-skill ~/.claude/skills/talent-search
 ```
 
-或项目级（仅当前项目可用）：
+Or project-level (current project only):
 
 ```bash
 git clone https://github.com/cw20051219-commits/talent-search-skill .claude/skills/talent-search
 ```
 
-**WorkBuddy 用户**：
+**WorkBuddy**:
 
 ```bash
 git clone https://github.com/cw20051219-commits/talent-search-skill ~/.workbuddy/skills/talent-search
 ```
 
-**其他 Agent 宿主**：把本文件夹复制到你的宿主对应的 skills 目录即可（skill 格式为通用的 `SKILL.md` + frontmatter 规范）。
+**Other Agent hosts** — copy this folder to the host's skills directory. The skill format is a generic `SKILL.md` + frontmatter spec.
 
-依赖：Node.js ≥ 18（仅用于生成 Excel 与维护候选人库，零第三方依赖）。
+Requirement: Node.js ≥ 18 (only used for the Excel generator and the candidate library; zero third-party dependencies).
 
-## 使用
+## Usage
 
-装好后直接对话触发，例如：
+After install, just talk to your agent, for example:
 
-> 帮我找 LLM 预训练数据方向的候选人：博士 2021–2024 届，C9 或海外院校，现在在国内工作，目标 20 人。
+> Find me 20 candidates for LLM pre-training data roles: PhD 2021–2024, C9 or overseas schools, currently based in China.
 
-或提供对标画像 / JD：
+Or hand it a benchmark persona / JD:
 
-> 这是我们的对标人物画像（examples/对标画像.example.md 格式），按这个找类似的人。
+> Here is our benchmark persona (in the examples/persona.example.md format). Find people like this.
 
-Agent 会自动进入 skill 流程；也可以参考 `examples/` 下的对标画像与 candidates.json 示例手工构造输入。
+The agent drops into the skill flow automatically. You can also craft inputs by hand using the persona template and `candidates.example.json` under `examples/`.
 
-## 仓库结构
+## Repo structure
 
 ```
 talent-search-skill/
-├── SKILL.md                    # 主指令：五步流程（含查库/回写/复盘）+ 验证纪律 + 产出规范
+├── SKILL.md                    # Main directive: 5-step flow (query / write-back / retrospective) + verification discipline + output spec
 ├── references/
-│   ├── source-playbook.md      # 四通道检索策略、联系方式获取规则
-│   ├── school-list.md          # C9/港校/海外院校分级、知名实验室判定
-│   └── lessons-template.md     # 复盘经验条目格式模板（四类条目）
+│   ├── source-playbook.md      # Four-channel search strategy and contact-collection rules
+│   ├── school-list.md          # C9 / HK / overseas school tier table and well-known-lab criteria
+│   └── lessons-template.md     # Retrospective entry format (four entry types)
 ├── scripts/
-│   ├── gen_excel.mjs           # 零依赖 xlsx 生成器（固定 9 列）
-│   ├── db_upsert.mjs           # 零依赖候选人库维护（upsert/search/stats）
-│   ├── eval_recall.mjs         # 零依赖 golden set 评测（recall + 字段准确率门禁）
-│   └── radar_scan.mjs          # 零依赖主动雷达（GitHub org 成员 + OpenAlex 论文增量扫描）
+│   ├── gen_excel.mjs           # Zero-dependency xlsx writer (fixed 9 columns)
+│   ├── db_upsert.mjs           # Zero-dependency candidate library (upsert / search / stats)
+│   ├── eval_recall.mjs         # Zero-dependency golden-set evaluation (recall + field-accuracy gate)
+│   └── radar_scan.mjs          # Zero-dependency proactive radar (GitHub org members + OpenAlex paper delta)
+├── assets/
+│   └── demo.gif                # Workflow demo (fictional data only)
 └── examples/
-    ├── 对标画像.example.md      # 对标画像三段式模板（人物虚构）
-    ├── candidates.example.json # Excel 输入数据结构示例
-    ├── db-candidates.example.jsonl # 候选人库 schema 示例（人物虚构）
-    ├── golden.example.jsonl    # 评测 golden set 格式示例（人物虚构）
-    └── radar-config.example.json # 主动雷达配置示例
+    ├── persona.example.md        # Three-section persona template (fictional people)
+    ├── candidates.example.json   # Excel input data structure
+    ├── db-candidates.example.jsonl  # Candidate library schema (fictional people)
+    ├── golden.example.jsonl      # Golden-set format (fictional people)
+    └── radar-config.example.json  # Proactive-radar config
 ```
 
-## 合规声明
+## Compliance
 
-- 本 skill 只收集**公开信息**（GitHub profile 邮箱、个人主页邮箱、论文通讯邮箱、LinkedIn 公开页），不买数据、不爬付费数据库、不进封闭群组
-- 产出的候选人信息涉及个人信息，使用者应确保用途合法合规（如正当招聘需求），并遵守所在司法辖区的个人信息保护法律法规（如《中华人民共和国个人信息保护法》、GDPR 等）
-- 使用者自行承担使用本工具的全部合规责任
+- This skill only collects **publicly available information** (GitHub profile emails, personal-homepage emails, paper corresponding-author emails, public LinkedIn pages). No paid databases, no closed-group scraping.
+- The candidate data it produces is personal information. You are responsible for using it lawfully (e.g. legitimate recruiting) and for complying with the personal-data laws of your jurisdiction (e.g. PIPL, GDPR, etc.).
+- The user of this tool bears all compliance responsibility.
 
 ## License
 
