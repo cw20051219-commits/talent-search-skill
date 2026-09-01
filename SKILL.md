@@ -12,6 +12,7 @@ description: 技术猎头人才检索：为 AI 与量化方向职位全网搜索
 1. **Excel 候选清单**（`talent-research/<主题>/candidates-YYYYMMDD.xlsx`）
 2. **检索记录**（同目录 `检索记录.md`，格式模板见第 3 步）
 3. **候选人库**（`talent-research/_db/candidates.jsonl`，跨任务沉淀——每轮检索先查库做增量更新，越用越厚）
+4. **经验沉淀**（`talent-research/_lessons/YYYY-MM.md`，每轮复盘追加——源有效性/作废模式/网络坑/流程改进，skill 在使用中自我改进）
 
 ## 环境适配说明
 
@@ -51,6 +52,8 @@ node scripts/db_upsert.mjs talent-research/_db/candidates.jsonl search <方向�
 - `last_verified` 超过 90 天（search 结果带 ⚠过期标记）→ 只重新核实现职与工作地点
 - `status` 为 `rejected` 的（含作废原因）→ 本轮跳过，除非用户点名复查
 - 本轮四通道检索的火力集中在库内缺口：新方向、新公司、新毕业年份段
+
+**读最近经验**：若 `talent-research/_lessons/` 存在，读当月与上月两个经验文件（源有效性、作废模式、网络坑、流程改进），据此调整本轮四通道的优先级与检索组合；与画像相关的作废模式应主动向用户提示（如「上月同方向 8/12 作废是学历不达标，本轮门槛是否调整」）。
 
 ## 第 1 步：四通道并行检索
 
@@ -213,6 +216,27 @@ node scripts/gen_excel.mjs candidates.json 输出路径.xlsx
 - [ ] ...
 ```
 
+## 第 4 步：复盘与沉淀（必需）
+
+产出完成后，主代理基于本轮检索记录做一次简短复盘，把**可复用**的经验追加到 `talent-research/_lessons/<当月>.md`——无文件则按 `references/lessons-template.md` 的格式新建（该目录已被 `.gitignore` 排除，不会进仓库）。
+
+复盘输入：检索记录（各通道命中数、作废原因分布、耗时环节）＋ 产出清单 ＋ 用户中途追加的约束。
+
+每条 lesson 一行，四种类型选其一：
+
+| 类型 | 写什么 |
+|------|--------|
+| **源有效性** | 哪个源命中/失效（带数据），下轮优先级怎么调 |
+| **作废模式** | 作废原因分布揭示的画像问题与调整建议 |
+| **网络坑** | 本次新发现的站点可达性问题与绕法 |
+| **流程改进** | 最耗时/最难核实的环节及改法 |
+
+纪律：
+
+- 只写可复用结论，不写任务流水账（流水账属于检索记录）
+- 每条注明日期与方向标签
+- 与已有 lesson 冲突的新经验不删旧条目，追加并标注「与 <日期> 条目冲突，本次为准」
+
 ## 数据质量底线
 
 - 一手来源优先：搜索引擎只用于发现线索，核实必须回到官网/主页/论文/GitHub 原文
@@ -228,3 +252,4 @@ node scripts/gen_excel.mjs candidates.json 输出路径.xlsx
 |------|--------|
 | `references/source-playbook.md` | 第 1 步检索开始前必读（通道策略、联系方式获取规则） |
 | `references/school-list.md` | 第 2 步核实学历门槛时必读 |
+| `references/lessons-template.md` | 第 4 步复盘追加经验前读（条目格式与纪律） |
