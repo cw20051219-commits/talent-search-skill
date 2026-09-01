@@ -86,7 +86,8 @@ The agent drops into the skill flow automatically. You can also craft inputs by 
 
 ```
 talent-search-skill/
-├── SKILL.md                    # Main directive: 5-step flow (query / write-back / retrospective) + verification discipline + output spec
+├── SKILL.md                    # Main directive (English): 5-step flow (query / write-back / retrospective) + verification discipline + output spec
+├── SKILL.zh-CN.md              # Same directive in Chinese
 ├── references/
 │   ├── source-playbook.md      # Four-channel search strategy and contact-collection rules
 │   ├── school-list.md          # C9 / HK / overseas school tier table and well-known-lab criteria

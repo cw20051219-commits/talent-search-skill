@@ -1,314 +1,314 @@
 ---
 name: talent-search
-description: 技术猎头人才检索：为 AI 与量化方向职位全网搜索候选人（学历门槛可设为国内 C9、香港或海外院校，地域/年限等约束可自定义），输入人才画像或 JD，经信息交叉验证（论文/GitHub/职业平台/公司机构/个人主页，单轮验证为必需、五遍深度验证可选），产出 Excel 候选清单（姓名/学历/实习工作经历/个人主页/GitHub/一作论文/大学实验室经历/匹配亮点/备注含 CV 与联系方式）与检索记录。当用户要求找候选人、人才检索、猎头寻访、人才 mapping、按对标画像找人、提供 JD 或简历要求「找类似的人」、搜索 AI/量化人才时，使用此 skill——即使用户没有明说「检索」二字，只要是在为岗位找人就触发。
+description: Technical-recruiting talent search. For AI and quant roles, searches the whole public web for candidates (school bar configurable: China C9 / Hong Kong / overseas; location, seniority and other constraints customizable). Input a candidate persona or JD; output is a cross-verified Excel candidate list plus a full search log. Use this skill whenever the user asks to find candidates, do talent sourcing or headhunting, build a talent map, find people similar to a benchmark persona, or provides a JD asking to "find people like this" — even without the word "search", as long as the goal is filling a role. 中文触发词：找候选人、人才检索、猎头寻访、人才 mapping、按对标画像找人、找类似的人。
 ---
 
-# talent-search — 技术猎头人才检索
+# talent-search — Technical Headhunting Talent Search
 
-## 定位
+## Positioning
 
-为 AI / 量化方向职位做全网人才寻访。输入是人才画像或 JD，输出是：
+Full-web talent sourcing for AI / quant roles. Input is a candidate persona or JD; outputs are:
 
-1. **Excel 候选清单**（`talent-research/<主题>/candidates-YYYYMMDD.xlsx`）
-2. **检索记录**（同目录 `检索记录.md`，格式模板见第 3 步）
-3. **候选人库**（`talent-research/_db/candidates.jsonl`，跨任务沉淀——每轮检索先查库做增量更新，越用越厚）
-4. **经验沉淀**（`talent-research/_lessons/YYYY-MM.md`，每轮复盘追加——源有效性/作废模式/网络坑/流程改进，skill 在使用中自我改进）
+1. **Excel candidate list** (`talent-research/<topic>/candidates-YYYYMMDD.xlsx`)
+2. **Search log** (`search-log.md` in the same folder; template in Step 3)
+3. **Candidate library** (`talent-research/_db/candidates.jsonl`, accumulates across tasks — every round queries the library first for incremental updates, so it gets thicker with use)
+4. **Lessons file** (`talent-research/_lessons/YYYY-MM.md`, appended after every retrospective — source effectiveness / rejection patterns / network pitfalls / process improvements; the skill improves itself through use)
 
-## 环境适配说明
+## Host adaptation
 
-本 skill 工具无关，在不同宿主 Agent 中按以下原则适配：
+This skill is tool-agnostic. Adapt it to the host agent as follows:
 
-- **网络检索**：使用宿主内置的网络检索/抓取工具（如 WebSearch / WebFetch 或同等能力）。论文检索可直接抓 arXiv API、Semantic Scholar API、OpenAlex API；GitHub API 可直接请求。
-- **需登录态的站点**（脉脉、LinkedIn、即刻、小红书等）：使用本机可用的浏览器自动化 skill（如 agent-browser）或等效工具，确保账号合规登录。
-- **代理**：如本机访问外网超时，自行按网络环境配置 `https_proxy` 环境变量；多数 `.edu.cn` 站点直连反而更通。
-- **Node.js 运行时**：`scripts/gen_excel.mjs` 为零依赖脚本，Node.js ≥ 18 直接运行。
-- **子代理**：如宿主支持并行子代理（Agent 工具），按第 1 步并行派发；不支持则主线程串行执行各通道。
+- **Web search**: use the host's built-in search/fetch tools (WebSearch / WebFetch or equivalent). Paper search can hit arXiv API, Semantic Scholar API, OpenAlex API directly; the GitHub API can be requested directly.
+- **Sites requiring login** (Maimai, LinkedIn, Jike, Xiaohongshu, etc.): use a locally available browser-automation skill (e.g. agent-browser) or an equivalent tool, with the account logged in compliantly.
+- **Proxies**: if outbound access times out, configure `https_proxy` per your network; most `.edu.cn` sites actually work better without a proxy.
+- **Node.js runtime**: `scripts/gen_excel.mjs` is zero-dependency and runs on Node.js ≥ 18.
+- **Sub-agents**: if the host supports parallel sub-agents (an Agent tool), dispatch the channels of Step 1 in parallel; otherwise run channels serially on the main thread.
 
-## 第 0 步：解析画像，锁定检索参数
+## Step 0: Parse the persona, lock the search parameters
 
-读用户给的画像/JD（可能是文件路径、对标画像 md、或一段文字）。提取以下参数，不明确的**一次性**向用户确认，能合理推断的推断后写进检索记录：
+Read the persona / JD the user provided (it may be a file path, a benchmark-persona markdown, or plain text). Extract the parameters below; ask the user **once** about anything ambiguous, make reasonable inferences where possible and record them in the search log:
 
-| 参数 | 说明 |
+| Parameter | Notes |
 |------|------|
-| 方向关键词 | 中英双语，如「LLM 预训练数据 / pretraining data curation」「量化策略 / quant research」 |
-| 学历硬门槛 | 如国内 C9 / 香港 / 海外院校（判定对照 `references/school-list.md`）；学位层级（博士/硕士/本科） |
-| 毕业年限窗口 | 如「博士 2021–2023 届，3–5 年工业界经验」 |
-| 目标公司/团队 | 候选现职或曾任职的目标范围（前沿大模型公司、头部量化私募等） |
-| 工作地点约束 | 默认不限；用户可要求限定地域（如「只找目前在国内工作的候选人」），此时检索须核实现职所在地，不在要求地域内的直接剔除并记「作废（地域不符）」 |
-| 加分/排除项 | 如「视觉转 LLM 数据」「只限华人」「排除纯学术界」 |
-| 目标数量 | 默认 20 人，用户可指定 |
+| Direction keywords | Bilingual, e.g. "LLM pretraining data / pretraining data curation", "quant strategy / quant research" |
+| School hard bar | E.g. China C9 / Hong Kong / overseas (tier table in `references/school-list.md`); degree level (PhD / Master / Bachelor) |
+| Graduation window | E.g. "PhD 2021–2023, 3–5 years in industry" |
+| Target companies / teams | The pool the candidate's current or past role should come from (frontier LLM labs, top quant funds, etc.) |
+| Location constraint | Default none; the user may restrict geography (e.g. "only candidates currently working in China"). Then the search must verify current work location; anyone outside the region is dropped and logged as "rejected (location)" |
+| Bonus / exclusion items | E.g. "vision-to-LLM data", "Chinese-speaking candidates only", "exclude pure academia" |
+| Target count | Default 20; user-adjustable |
 
-对标画像格式范例：`examples/对标画像.example.md`（简历事实提取 + 人物特征 + 检索目标画像三段式）。用户没给文件时，按这个结构先自拟一份画像再检索，并让用户扫一眼确认。
+Benchmark-persona format example: `examples/persona.example.md` (three sections: resume facts, persona traits, search-target profile). If the user gave no file, draft a persona in that structure first, have the user glance at it, then search.
 
-**增量查库（有库必查）**：若 `talent-research/_db/candidates.jsonl` 存在，先查库再撒网：
+**Incremental library check (mandatory if a library exists)**: if `talent-research/_db/candidates.jsonl` exists, query it before casting the net:
 
 ```bash
-node scripts/db_upsert.mjs talent-research/_db/candidates.jsonl search <方向关键词/公司名/姓名>
+node scripts/db_upsert.mjs talent-research/_db/candidates.jsonl search <direction keyword / company / name>
 ```
 
-按以下规则把本轮任务变成增量更新：
+Turn this round into an incremental update by these rules:
 
-- 库内已有且 `last_verified` 距今 ≤ 90 天 → 直接复用（只补缺失字段），不重复全网检索
-- `last_verified` 超过 90 天（search 结果带 ⚠过期标记）→ 只重新核实现职与工作地点
-- `status` 为 `rejected` 的（含作废原因）→ 本轮跳过，除非用户点名复查
-- 本轮四通道检索的火力集中在库内缺口：新方向、新公司、新毕业年份段
+- In library with `last_verified` ≤ 90 days ago → reuse directly (only fill missing fields); do not re-search the whole web
+- `last_verified` more than 90 days ago (search results carry a ⚠ stale flag) → re-verify only current role and work location
+- `status` is `rejected` (with reason recorded) → skip this round unless the user names them for review
+- Focus this round's four-channel firepower on library gaps: new directions, new companies, new graduation cohorts
 
-**读最近经验**：若 `talent-research/_lessons/` 存在，读当月与上月两个经验文件（源有效性、作废模式、网络坑、流程改进），据此调整本轮四通道的优先级与检索组合；与画像相关的作废模式应主动向用户提示（如「上月同方向 8/12 作废是学历不达标，本轮门槛是否调整」）。
+**Read recent lessons**: if `talent-research/_lessons/` exists, read this month's and last month's lesson files (source effectiveness, rejection patterns, network pitfalls, process improvements) and tune channel priorities and query combinations accordingly. If a rejection pattern is relevant to the current persona, proactively flag it to the user (e.g. "last month 8/12 rejects in this direction failed the school bar — should we adjust the bar this round?").
 
-## 第 1 步：四通道并行检索
+## Step 1: Four-channel parallel search
 
-先读 `references/source-playbook.md`（通道策略 + 联系方式获取规则），然后并行派 4 个子代理，各负责一个通道：
+First read `references/source-playbook.md` (channel strategy + contact-collection rules), then dispatch 4 sub-agents in parallel, one per channel:
 
-1. **学术通道**：论文作者、课题组、导师实验室页面、竞赛获奖者
-2. **GitHub 通道**：相关开源项目贡献者、论文官方实现作者
-3. **公司通道**：目标公司 AI/研究团队页面、技术博客作者、公司开源组织成员
-4. **社区通道**：知乎/公众号/技术社区/LinkedIn 公开页（华人候选线索的主通道）
+1. **Academia channel**: paper authors, research groups, advisor lab pages, competition winners
+2. **GitHub channel**: contributors to relevant open-source projects, authors of official paper implementations
+3. **Company channel**: target companies' AI / research team pages, tech-blog authors, corporate open-source org members
+4. **Community channel**: Zhihu / WeChat official accounts / tech forums / public LinkedIn pages (the main channel for Chinese-speaking candidate leads)
 
-子代理 prompt 模板（目标导向，不暗示具体手段；工具指令那句必须有，按宿主实际工具名替换）：
+Sub-agent prompt template (goal-oriented, does not prescribe specific means; keep the tools sentence and substitute the host's actual tool names):
 
 ```
-你是人才检索子代理。任务：从【<通道>】为以下画像检索候选线索。
-画像：<方向关键词/学历门槛/年限窗口/目标公司/加分排除项/地域约束（如有）>
-使用宿主的网络检索工具（如 WebSearch/WebFetch）检索公开信息；如需浏览器操作
-（如脉脉、LinkedIn 等需登录态的站点）则加载本机可用的浏览器自动化 skill 并遵循其指引。
-要求：
-- 找到 8–15 条候选线索后停止，不用追求穷尽
-- 每条线索返回一张卡片（markdown）：
-  ## 姓名（中英文）
-  - 推断学历：学校/学位/年份（未核实就标「待核实」）
-  - 现职线索：公司/职位/时间/工作地点（不确定就标「待核实」）
-  - 主页：URL 或 未找到
-  - GitHub：URL 或 未找到
-  - 联系方式线索：邮箱/LinkedIn 或 未找到
-  - 来源：每条信息的证据 URL
-- 只记录公开信息；不确定的标「待核实」，禁止编造
+You are a talent-search sub-agent. Task: from the [<channel>] channel, find candidate leads for the persona below.
+Persona: <direction keywords / school bar / graduation window / target companies / bonus-exclusion items / location constraint if any>
+Use the host's web-search tools (e.g. WebSearch/WebFetch) to search public information; if browser operations are needed
+(sites requiring login, e.g. Maimai, LinkedIn), load a locally available browser-automation skill and follow its guidance.
+Requirements:
+- Stop after 8–15 candidate leads; do not chase exhaustiveness
+- Return one card per lead (markdown):
+  ## Name (Chinese and English)
+  - Inferred education: school / degree / year (mark "unverified" if not confirmed)
+  - Current-role clue: company / title / dates / work location (mark "unverified" if unsure)
+  - Homepage: URL or not found
+  - GitHub: URL or not found
+  - Contact clue: email / LinkedIn or not found
+  - Sources: evidence URL for every item above
+- Record public information only; mark uncertain items "unverified"; never fabricate
 ```
 
-每个子代理把卡片列表作为最终回复返回给主代理，**不要写文件**。
+Each sub-agent returns its card list as the final reply to the lead agent. **Do not write files.**
 
-## 第 2 步：汇总、去重、交叉验证
+## Step 2: Consolidate, dedupe, cross-verify
 
-> **验证深度标准**：**单轮验证模式**为必需流程——每位入选候选人都必须经过至少一遍交叉验证，未验证的候选不得入榜。用户如需更高置信度且时间充裕，可选择**五遍验证模式**作为可选深度验证。
+> **Verification-depth standard**: the **single-pass verification mode** is the mandatory baseline — every shortlisted candidate must pass at least one round of cross-verification; unverified candidates never make the list. If the user wants higher confidence and has time, the **five-pass verification mode** is an optional deep-dive.
 
-### 单轮验证模式（标准/必需流程）
+### Single-pass verification mode (standard / mandatory)
 
-1. **去重**：按「姓名 + 主页/GitHub URL」合并跨通道重复候选人，形成短名单
-2. **单轮验证**：短名单上的每个人直接抓个人主页/学术页面（一手来源），核实**学历（院校/学位/年份）、毕业年限、现职、工作地点（如有地域约束）、联系方式**。核实不了的标注「待核实」，并在检索记录中注明「仅单轮核实」
-3. **学历门槛核对**：对照 `references/school-list.md` 判定院校等级。**只认一手来源**（LinkedIn 教育栏、个人主页、论文署名、博士论文标题页、GitHub 组织），搜索聚合页和二手报道只能作为定位线索，不能作为核实依据。不达标的剔除，在检索记录中写明原因（沿用「作废（原因）」写法）
-4. **逐人补齐**：现职、实习/工作经历、个人主页、GitHub、公开联系方式。信息拿不到的填「未获取」，禁止编造或「推断」当事实
-5. **一作论文**：只统计**第一作者**论文；先写一作数量，再列出最多 5 篇代表作标题（附会议/期刊与年份）。标题只写核实过的原文，以论文署名与 Google Scholar 为准
-6. **大学实验室经历**：只写核实过的知名大学实验室，格式「学校 + 实验室/组名（年份区间）」，判定标准见 `references/school-list.md`；没有就不填
-7. **匹配亮点**：每人一句话说明为什么匹配（代表作、关键经历、方向契合点）
+1. **Dedupe**: merge cross-channel duplicates by "name + homepage/GitHub URL" into a shortlist
+2. **Single pass**: for each shortlisted person, fetch the personal homepage / academic page directly (primary sources) and verify **education (school/degree/year), graduation window, current role, work location (if constrained), contact info**. Anything unverifiable is marked "unverified", and the search log notes "single-pass only"
+3. **School-bar check**: grade the school against `references/school-list.md`. **Primary sources only** (LinkedIn education section, personal homepage, paper authorship, PhD thesis title page, GitHub org); search aggregators and secondhand reports are locating clues, never verification evidence. Below-bar candidates are dropped with the reason recorded in the log (keep the "rejected (reason)" wording)
+4. **Fill per person**: current role, internships/jobs, homepage, GitHub, public contact info. Anything unavailable is "not obtained" — never fabricate and never pass inference off as fact
+5. **First-author papers**: count **first-author** papers only; write the count first, then up to 5 representative titles (with venue and year). Titles only as verified from the paper itself, per authorship lists and Google Scholar
+6. **University-lab experience**: verified well-known university labs only, formatted "school + lab/group name (year range)"; criteria in `references/school-list.md`; leave blank if none
+7. **Match highlight**: one sentence per person on why they match (representative work, key experience, direction fit)
 
-### 五遍验证模式（可选/深度流程）
+### Five-pass verification mode (optional / deep)
 
-适用于用户明确要求深度核实或关键岗位候选人。短名单上的每个人都要经过五个独立来源维度的交叉验证，核实同一组核心事实（姓名、学历、经历、现职、一作论文）。**每个候选人派一个核实子代理**，按顺序跑完五遍：
+For users who explicitly ask for deep verification, or for critical-role candidates. Every shortlisted person is cross-verified across five independent source dimensions, checking the same core facts (name, education, experience, current role, first-author papers). **Dispatch one verification sub-agent per candidate**, running all five passes in order:
 
-| 遍数 | 来源维度 | 核实重点 |
+| Pass | Source dimension | Verify focus |
 |------|---------|---------|
-| 第 1 遍 | 学术来源：论文署名、Google Scholar、arXiv、会议 proceedings、博士论文、实验室页面 | 学历、一作论文、实验室 |
-| 第 2 遍 | GitHub：profile、贡献时间线、组织归属、profile 邮箱 | 经历、现职、联系方式 |
-| 第 3 遍 | 职业平台：脉脉、LinkedIn、猎聘/Boss 等招聘软件的公开档案 | 经历、现职（需登录态的走浏览器自动化） |
-| 第 4 遍 | 公司/机构一手来源：官网团队页、新闻稿、技术博客、公司开源组织 | 现职与任职时间 |
-| 第 5 遍 | 个人主页/社交媒体：个人主页、知乎、公众号、X、即刻 | 综合印证 + 联系方式 |
+| 1 | Academia: paper authorship, Google Scholar, arXiv, conference proceedings, PhD thesis, lab pages | Education, first-author papers, lab |
+| 2 | GitHub: profile, contribution timeline, org membership, profile email | Experience, current role, contact |
+| 3 | Professional platforms: Maimai, LinkedIn, Liepin/Boss public profiles | Experience, current role (login-walled sites via browser automation) |
+| 4 | Company / institution primary sources: official team pages, press releases, tech blogs, corporate open-source orgs | Current role and tenure |
+| 5 | Personal homepage / social media: personal site, Zhihu, WeChat account, X, Jike | Corroboration + contact info |
 
-核实子代理 prompt 模板（目标导向；工具指令按宿主实际工具名替换）：
+Verification sub-agent prompt template (goal-oriented; substitute the host's actual tool names):
 
 ```
-你是候选人核实子代理。任务：对以下候选人做五遍信息交叉验证。
-候选人线索：<姓名 + 已有线索卡片>
-使用宿主的网络检索工具（如 WebSearch/WebFetch）检索公开信息；如需浏览器操作
-（如脉脉、LinkedIn 等需登录态的站点）则加载本机可用的浏览器自动化 skill 并遵循其指引。
-五遍验证（顺序执行，每遍一个独立来源维度）：
-1. 学术来源（论文署名/Scholar/arXiv/会议/博士论文/实验室页面）—— 可抓 arXiv API、Semantic Scholar API、OpenAlex API
-2. GitHub（profile/贡献时间线/组织/邮箱）—— 可抓 GitHub API
-3. 职业平台（脉脉/LinkedIn/猎聘等公开档案，需登录态走浏览器自动化工具）
-4. 公司/机构一手来源（官网团队页/新闻稿/技术博客/公司开源组织）
-5. 个人主页/社交媒体（个人主页/知乎/公众号/X/即刻）
-每遍都核实同一组事实：姓名、学历（院校/学位/年份）、经历（公司/职位/时间）、现职、工作地点（如有地域约束）。
-要求：
-- 五遍结果互相矛盾时，以一手来源为准，在「冲突记录」中写明矛盾内容与判定依据
-- 如设定了地域约束，现职工作地点明确不符的，直接标注「作废（地域不符）」
-- 信息拿不到就标「未获取」，禁止编造
-返回（markdown）：
-## 核实结果
-- 姓名（中英）
-- 学历
-- 经历
-- 现职
-- 一作论文：数量 + 论文标题（≤5 篇，附 venue 与年份）
-- 大学实验室经历
-- 主页 / GitHub / 联系方式
-## 五遍验证记录
-每遍：查了什么、命中什么、与其他遍的冲突
+You are a candidate-verification sub-agent. Task: run five-pass cross-verification on the candidate below.
+Candidate lead: <name + existing lead card>
+Use the host's web-search tools (e.g. WebSearch/WebFetch) to search public information; if browser operations are needed
+(sites requiring login, e.g. Maimai, LinkedIn), load a locally available browser-automation skill and follow its guidance.
+Five passes (in order, each an independent source dimension):
+1. Academia (paper authorship / Scholar / arXiv / conferences / PhD thesis / lab pages) — arXiv API, Semantic Scholar API, OpenAlex API are fetchable
+2. GitHub (profile / contribution timeline / orgs / email) — GitHub API is fetchable
+3. Professional platforms (Maimai / LinkedIn / Liepin public profiles; login-walled ones via browser automation)
+4. Company / institution primary sources (official team pages / press releases / tech blogs / corporate open-source orgs)
+5. Personal homepage / social media (personal site / Zhihu / WeChat account / X / Jike)
+Each pass verifies the same facts: name, education (school/degree/year), experience (company/title/dates), current role, work location (if constrained).
+Requirements:
+- When passes conflict, primary sources win; record the conflict and the ruling in a "conflicts" section
+- If a location constraint is set and the current work location clearly violates it, mark "rejected (location)"
+- Mark unavailable info "not obtained"; never fabricate
+Return (markdown):
+## Verification result
+- Name (Chinese and English)
+- Education
+- Experience
+- Current role
+- First-author papers: count + titles (≤5, with venue and year)
+- University-lab experience
+- Homepage / GitHub / contact info
+## Five-pass record
+Per pass: what was queried, what was found, conflicts with other passes
 ```
 
-子代理把核实结果作为最终回复返回主代理，**不要写文件**。
+The sub-agent returns the verification result as the final reply to the lead agent. **Do not write files.**
 
-### 回写候选人库（必需）
+### Write back to the candidate library (mandatory)
 
-短名单验证完成后，把**全部**候选人（含作废者）upsert 回共享库 `talent-research/_db/candidates.jsonl`，供后续任务增量复用：
+After shortlist verification, upsert **all** candidates (including rejected ones) back into the shared library `talent-research/_db/candidates.jsonl` for incremental reuse by later tasks:
 
 ```bash
 node scripts/db_upsert.mjs talent-research/_db/candidates.jsonl upsert <candidates.json>
 ```
 
-输入 JSON 与 `gen_excel.mjs` 的 candidates 数组完全兼容，另带库级字段：
+The input JSON is fully compatible with `gen_excel.mjs`'s candidates array, plus library-level fields:
 
-| 字段 | 必填 | 说明 |
+| Field | Required | Notes |
 |------|------|------|
-| `direction` | 建议 | 本轮方向标签（如 `llm-pretraining-data`），同方向查库的索引 |
-| `last_verified` | 自动 | 最后验证日期，缺省取当天 |
-| `verify_depth` | 自动 | `single` / `five`，本轮实际执行的验证深度 |
-| `status` | 建议 | `active`（入选）或 `rejected`（作废）；作废须附 `reject_reason`，避免下轮重复挖掘 |
+| `direction` | recommended | This round's direction tag (e.g. `llm-pretraining-data`), the index for same-direction library queries |
+| `last_verified` | auto | Last verification date; defaults to today |
+| `verify_depth` | auto | `single` / `five` — the depth actually executed this round |
+| `status` | recommended | `active` (shortlisted) or `rejected` (dropped); rejections must carry `reject_reason` so next round won't re-mine them |
 
-去重键为 GitHub URL > 主页 URL > 姓名（URL 忽略大小写与末尾斜杠）；upsert 时非空新字段覆盖旧字段、空字段保留旧值。schema 详见脚本头部注释与 `examples/db-candidates.example.jsonl`。库含个人信息，已在 `.gitignore` 中排除，**切勿提交进 git**。
+Dedup keys are GitHub URL > homepage URL > name (URLs case-insensitive, trailing slashes ignored); on upsert, non-empty new fields overwrite old ones, empty fields keep old values. Full schema in the script's header comment and `examples/db-candidates.example.jsonl`. The library contains personal information and is excluded by `.gitignore` — **never commit it to git**.
 
-**入库门槛与联系方式规则：**
+**Library entry bar and contact rules:**
 
-- 入库硬门槛：身份经**主页 ↔ GitHub（或权威机构页）双向有效验证**——单向信息或仅有搜索引擎结果不入库
-- 联系方式分级记录在 `notes` 字段：公开电话/微信（本人自行发布在主页/README/公开名片上的才算）> 公开邮箱 > 无直接联系方式
-- **脉脉直达链接**：候选人若有公开可访问的脉脉个人主页（`maimai.cn/u/...` 格式），单独写入 `maimai` 字段备注，可一键跳转触达；脉脉上的**报道文章页（article/detail）不是个人主页**，不要误标
-- 合规红线：电话/微信/脉脉信息只收**公开渠道**的，不爬脉脉私密聊天、不买数据、不进封闭群组
+- Entry hard bar: identity must be **bi-directionally verified between homepage ↔ GitHub (or an authoritative institution page)** — one-way information or search-engine-only hits never enter the library
+- Contact info is tiered into the `notes` field: public phone / WeChat (self-published on their own homepage/README/public card only) > public email > no direct contact
+- **Maimai direct links**: if a candidate has a publicly accessible Maimai profile page (`maimai.cn/u/...` format), record it separately in the `maimai` field for one-click reach; **article pages on Maimai (article/detail) are not personal profiles** — never mislabel them
+- Compliance red line: phone / WeChat / Maimai info comes from **public channels only** — no scraping of private chats, no bought data, no closed groups
 
-## 第 3 步：产出
+## Step 3: Produce outputs
 
-在 `talent-research/<主题>/` 下产出两个文件：
+Produce two files under `talent-research/<topic>/`:
 
 ### candidates-YYYYMMDD.xlsx
 
-用本 skill 目录下的 `scripts/gen_excel.mjs` 生成（零依赖，Node ≥ 18 直接跑）：
+Generate with `scripts/gen_excel.mjs` from this skill's directory (zero-dependency, runs on Node ≥ 18):
 
 ```bash
-node scripts/gen_excel.mjs candidates.json 输出路径.xlsx
+node scripts/gen_excel.mjs candidates.json output-path.xlsx
 ```
 
-`candidates.json` 结构与列定义见脚本头部注释，示例见 `examples/candidates.example.json`。固定 9 列：
+The structure of `candidates.json` and column definitions are in the script's header comment; an example is `examples/candidates.example.json`. Fixed 9 columns:
 
-| 列 | 内容 |
+| Column | Content |
 |----|------|
-| 姓名 | 中英文姓名 |
-| 学历 | 学校/学位/年份，多段学历分行写 |
-| 实习/工作经历 | 公司/职位/时间，分行写 |
-| 个人主页 | URL（没有填「未获取」） |
-| GitHub | URL（没有填「未获取」） |
-| 一作论文 | 一作数量 + 代表作标题（≤5 篇，附 venue 与年份），分行写 |
-| 大学实验室经历 | 「学校 + 实验室/组名（年份区间）」，没有不填 |
-| 匹配亮点 | 一句话匹配理由 |
-| 备注（CV/联系方式） | CV 链接、LinkedIn、邮箱等公开联系方式（没有填「未获取」） |
+| Name | Chinese and English names |
+| Education | School / degree / year; multiple degrees on separate lines |
+| Internships / jobs | Company / title / dates, one per line |
+| Personal homepage | URL (or "not obtained") |
+| GitHub | URL (or "not obtained") |
+| First-author papers | Count + representative titles (≤5, with venue and year), one per line |
+| University-lab experience | "School + lab/group name (year range)"; blank if none |
+| Match highlight | One-sentence match rationale |
+| Notes (CV / contact) | CV link, LinkedIn, email and other public contact info (or "not obtained") |
 
-### 检索记录.md
+### search-log.md
 
-按以下模板：
+Follow this template:
 
 ```markdown
-# 检索记录：<主题>（对标 <基准人>）
+# Search log: <topic> (benchmark: <benchmark person>)
 
-> 建立日期：YYYY-MM-DD
-> 检索方式：<实际用到的工具>
+> Date established: YYYY-MM-DD
+> Search methods: <tools actually used>
 
-## 任务要求
-- <画像摘要 + 全部约束（含中途追加的约束，标注追加时间）>
-- 验证方法：单轮验证为必需，五遍验证为可选深度验证
+## Task requirements
+- <persona summary + all constraints (including mid-round additions, timestamped)>
+- Verification method: single-pass mandatory; five-pass optional deep verification
 
-## 检索过程
-| 时间 | 查询/操作 | 结果与决策 |
+## Search process
+| Time | Query / action | Result and decision |
 |------|-----------|-----------|
-| ...  | ...       | ...（含「作废」与原因、验证中的矛盾与判定） |
+| ...  | ...       | ... (including "rejected" with reason, conflicts found during verification and how they were ruled on) |
 
-## 网络环境注意事项
-- <本次新发现的网络坑>
+## Network environment notes
+- <newly discovered pitfalls this round>
 
-## 待办
+## TODO
 - [ ] ...
 ```
 
-## 第 4 步：复盘与沉淀（必需）
+## Step 4: Retrospective and lessons (mandatory)
 
-产出完成后，主代理基于本轮检索记录做一次简短复盘，把**可复用**的经验追加到 `talent-research/_lessons/<当月>.md`——无文件则按 `references/lessons-template.md` 的格式新建（该目录已被 `.gitignore` 排除，不会进仓库）。
+After outputs are done, the lead agent runs a short retrospective on this round's search log and appends **reusable** lessons to `talent-research/_lessons/<current-month>.md` — create it per `references/lessons-template.md` if absent (the directory is excluded by `.gitignore` and never enters the repo).
 
-复盘输入：检索记录（各通道命中数、作废原因分布、耗时环节）＋ 产出清单 ＋ 用户中途追加的约束。
+Retrospective inputs: the search log (per-channel hit counts, rejection-reason distribution, time sinks) + the output list + constraints the user added mid-round.
 
-每条 lesson 一行，四种类型选其一：
+One line per lesson, one of four types:
 
-| 类型 | 写什么 |
+| Type | What to write |
 |------|--------|
-| **源有效性** | 哪个源命中/失效（带数据），下轮优先级怎么调 |
-| **作废模式** | 作废原因分布揭示的画像问题与调整建议 |
-| **网络坑** | 本次新发现的站点可达性问题与绕法 |
-| **流程改进** | 最耗时/最难核实的环节及改法 |
+| **Source effectiveness** | Which source hit / failed (with data), how to re-rank next round |
+| **Rejection pattern** | What the rejection distribution says about the persona, and suggested adjustments |
+| **Network pitfall** | Newly discovered site-reachability issues and workarounds |
+| **Process improvement** | The slowest / hardest-to-verify steps and how to fix them |
 
-纪律：
+Discipline:
 
-- 只写可复用结论，不写任务流水账（流水账属于检索记录）
-- 每条注明日期与方向标签
-- 与已有 lesson 冲突的新经验不删旧条目，追加并标注「与 <日期> 条目冲突，本次为准」
+- Only reusable conclusions, no task diary (the diary belongs in the search log)
+- Date and direction tag on every entry
+- New lessons conflicting with old ones never delete the old entry — append and note "conflicts with <date> entry; this one wins"
 
-## 维护与评测：改版必跑
+## Maintenance and evaluation: required for every revision
 
-对本 skill 的任何实质改动（SKILL.md 流程、`references/` 检索策略与经验）合入前，必须先跑评测基准——**没有评测的自我修改等于闭眼开车**：
+Before merging any substantive change to this skill (SKILL.md flow, `references/` search strategy and lessons), run the evaluation baseline first — **self-modification without evaluation is driving blindfolded**:
 
-1. **建 golden set**（一次性，每方向 10–20 人）：从历次已验证的产出中挑选确认无误的候选人，写入 `talent-research/_eval/golden.jsonl`（`.gitignore` 覆盖，不进仓库）。每条含 name + github/homepage + education/current 期望事实，格式见 `examples/golden.example.jsonl`
-2. **跑基准**：对 golden set 覆盖的方向做一次完整裸跑（不启用候选人库增量），拿到 result JSON 后计分：
+1. **Build a golden set** (one-time, 10–20 people per direction): pick confirmed-correct candidates from past verified outputs, write them to `talent-research/_eval/golden.jsonl` (covered by `.gitignore`, never committed). Each entry has name + github/homepage + education/current ground truth; format in `examples/golden.example.jsonl`
+2. **Run the baseline**: do one full cold run over the directions covered by the golden set (no candidate-library increment), get the result JSON, then score:
 
    ```bash
    node scripts/eval_recall.mjs talent-research/_eval/golden.jsonl <result.json> [result2.json ...]
    ```
 
-   指标：recall（及格线默认 0.8，`RECALL_MIN` 环境变量可调）、命中者的学历/现职字段准确率（归一化互含匹配）、misses 名单。不达标退出码为 1
-3. **判定合入**：recall ≥ 及格线且字段准确率不低于上次记录，改动才可合入；不达标则修正后重测。脚本用法与指标口径详见脚本头部注释
-4. **留痕**：每次评测记入 `talent-research/_eval/记录.md`（日期、recall、字段准确率、改动摘要），作为「进化不退步」的证据链
+   Metrics: recall (pass bar defaults to 0.8, adjustable via the `RECALL_MIN` env var), education/current-role field accuracy of hits (normalized mutual-containment matching), misses list. Below bar exits with code 1
+3. **Merge decision**: only merge if recall ≥ the bar and field accuracy is no lower than the last recorded run; otherwise fix and re-test. Script usage and metric definitions are in the script's header comment
+4. **Keep records**: log every run in `talent-research/_eval/records.md` (date, recall, field accuracy, change summary) as the evidence chain that "evolution never regresses"
 
-## 主动雷达（定时监控，可选）
+## Proactive radar (scheduled monitoring, optional)
 
-把「被问才查」升级为「定时扫描」：配置一次，每周自动产出增量人才信号报告。
+Upgrade from "search when asked" to "scan on schedule": configure once, get a weekly incremental talent-signal report.
 
-1. **配置**：复制 `examples/radar-config.example.json` 为 `<工作区>/talent-research/_radar/config.json`，填方向标签、论文检索关键词（英文短语）、目标 GitHub org 列表
+1. **Configure**: copy `examples/radar-config.example.json` to `<workspace>/talent-research/_radar/config.json`; fill in the direction tag, paper-search keywords (English phrases), and the target GitHub org list
 
-   国内大模型团队 GitHub org 实测速查（org 名错一个字母就扫不到，务必以此为准，填前可再核实）：
+   Field-tested China LLM-team GitHub org lookup (one wrong letter in an org name means zero results — trust this table and re-verify before filling):
 
-   | 团队 | org | 公开成员信号 |
+   | Team | org | Public-member signal |
    |------|-----|------|
-   | 阿里·千问 | `QwenLM` | 强 |
-   | 阿里·魔搭 | `ModelScope` | 弱（~2） |
-   | 阿里·通义实验室 | `Alibaba-NLP` | 中 |
-   | DeepSeek | `deepseek-ai` | 弱（~1） |
-   | 智谱 | `THUDM` / `zai-org` | 强 |
-   | 月之暗面 Kimi | `MoonshotAI` | 弱（~2） |
-   | 腾讯 ARC Lab | `TencentARC` | 中 |
-   | 腾讯混元 | `Tencent-Hunyuan` | 无（成员不公开，保留占位） |
-   | 字节 Seed | `ByteDance-Seed` | 无（成员不公开，保留占位） |
-   | 百度飞桨 | `PaddlePaddle` | 最强（~35） |
-   | 华为诺亚方舟 | `huawei-noah` | 中 |
-   | 华为昇思 | `mindspore-ai`（注意：不是 `mindspore`） | 无（成员不公开，保留占位） |
-   | 美团 | `meituan` | 中 |
-   | 京东 | `jd-opensource` | 中 |
-   | 小红书 | `xiaohongshu-pub` | 极弱（官方基本不用 GitHub） |
+   | Alibaba · Qwen | `QwenLM` | strong |
+   | Alibaba · ModelScope | `ModelScope` | weak (~2) |
+   | Alibaba · Tongyi Lab | `Alibaba-NLP` | medium |
+   | DeepSeek | `deepseek-ai` | weak (~1) |
+   | Zhipu | `THUDM` / `zai-org` | strong |
+   | Moonshot · Kimi | `MoonshotAI` | weak (~2) |
+   | Tencent ARC Lab | `TencentARC` | medium |
+   | Tencent Hunyuan | `Tencent-Hunyuan` | none (members not public; keep as placeholder) |
+   | ByteDance Seed | `ByteDance-Seed` | none (members not public; keep as placeholder) |
+   | Baidu PaddlePaddle | `PaddlePaddle` | strongest (~35) |
+   | Huawei Noah's Ark | `huawei-noah` | medium |
+   | Huawei MindSpore | `mindspore-ai` (note: not `mindspore`) | none (members not public; keep as placeholder) |
+   | Meituan | `meituan` | medium |
+   | JD | `jd-opensource` | medium |
+   | Xiaohongshu | `xiaohongshu-pub` | very weak (the company barely uses GitHub) |
 
-2. **运行**（工作区根目录为 cwd）：
+2. **Run** (with the workspace root as cwd):
 
    ```bash
    node scripts/radar_scan.mjs talent-research/_radar/config.json
    ```
 
-   首次运行建立基线；此后每次为增量 diff，报告落盘 `talent-research/_radar/radar-YYYY-MM-DD.md`：GitHub org 新增公开成员（人才流动信号）+ OpenAlex 方向新论文（含一作与机构，一作即候选线索）
-3. **定时**：用宿主的定时任务能力（cron / automation）每周运行一次。跑完后把报告中的新信号按单轮验证流程快速核实、upsert 进候选人库，相关经验（哪个 org/关键词信号密度高）写进 `_lessons/`
-4. **边界**：只扫公开信息（GitHub public members、OpenAlex 公开元数据）；GitHub 未认证 API 限额 60 次/小时，org 总量控制在 ~20 个以内（每个 org 每轮约 1-2 次请求）；论文通道用 OpenAlex 而非 arXiv API（后者 https 在部分网络不可达）
-5. **弱信号源说明**：部分公司（腾讯混元、字节 Seed、华为昇思）GitHub 成员列表完全不公开，org 抓到 0 人属于正常——保留它们成本几乎为零，一旦未来有人 publicize 成员身份，雷达立刻能捕捉到；小红书官方 GitHub 存在感极低，信号主要靠论文通道补充
+   The first run establishes the baseline; every later run is an incremental diff, with the report written to `talent-research/_radar/radar-YYYY-MM-DD.md`: new public GitHub org members (talent-flow signals) + new OpenAlex papers in the direction (with first author and institution — first authors are candidate leads)
+3. **Schedule**: run weekly via the host's scheduler (cron / automation). After each run, quickly verify the new signals through the single-pass flow, upsert them into the candidate library, and write the lessons (which orgs / keywords have high signal density) into `_lessons/`
+4. **Boundaries**: public information only (GitHub public members, OpenAlex public metadata); unauthenticated GitHub API is rate-limited to 60 req/hour, keep the org list under ~20 (each org costs ~1-2 requests per round); use OpenAlex for papers instead of the arXiv API (the latter's https is unreachable on some networks)
+5. **Weak-signal note**: some companies (Tencent Hunyuan, ByteDance Seed, Huawei MindSpore) keep GitHub member lists fully private — an org scanning 0 people is normal. Keeping them costs almost nothing: the moment someone publicizes their membership, the radar catches it. Xiaohongshu has minimal GitHub presence; its signal comes mainly through the paper channel
 
-## 数据质量底线
+## Data-quality bottom lines
 
-- 一手来源优先：搜索引擎只用于发现线索，核实必须回到官网/主页/论文/GitHub 原文
-- 联系方式只收集**公开**信息（GitHub profile 邮箱、个人主页邮箱、论文通讯邮箱、LinkedIn 公开页），不买数据、不爬付费库、不进封闭群组
-- 每个候选的每条关键信息都能在检索记录里追溯到来源 URL
-- **每位入选候选人都必须经过至少一遍交叉验证**：未验证的候选不得入榜
-- 如设定了地域约束：现职所在地核实不到或明确不符的，剔除并在检索记录中写明原因
-- 宁缺毋滥：凑不齐一手来源核实的候选，宁可标「待核实」也不填推测值
+- Primary sources first: search engines are for discovering leads; verification must go back to official sites / homepages / papers / GitHub originals
+- Contact info from **public** sources only (GitHub profile email, personal-homepage email, paper corresponding-author email, public LinkedIn pages) — no bought data, no paid-database scraping, no closed groups
+- Every key fact for every candidate must be traceable to a source URL in the search log
+- **Every shortlisted candidate must pass at least one round of cross-verification**: unverified candidates never make the list
+- If a location constraint is set: drop anyone whose current work location cannot be verified or clearly violates it, with the reason in the search log
+- Better empty than fabricated: candidates who cannot be verified against primary sources are marked "unverified", never filled with guesses
 
 ## References
 
-| 文件 | 何时读 |
+| File | When to read |
 |------|--------|
-| `references/source-playbook.md` | 第 1 步检索开始前必读（通道策略、联系方式获取规则） |
-| `references/school-list.md` | 第 2 步核实学历门槛时必读 |
-| `references/lessons-template.md` | 第 4 步复盘追加经验前读（条目格式与纪律） |
+| `references/source-playbook.md` | Mandatory before Step 1 (channel strategy, contact-collection rules) |
+| `references/school-list.md` | Mandatory during Step 2 school-bar verification |
+| `references/lessons-template.md` | Read before appending lessons in Step 4 (entry format and discipline) |

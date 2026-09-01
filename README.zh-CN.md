@@ -78,7 +78,7 @@ git clone https://github.com/cw20051219-commits/talent-search-skill ~/.workbuddy
 
 或提供对标画像 / JD：
 
-> 这是我们的对标人物画像（examples/对标画像.example.md 格式），按这个找类似的人。
+> 这是我们的对标人物画像（examples/persona.example.md 格式），按这个找类似的人。
 
 Agent 会自动进入 skill 流程；也可以参考 `examples/` 下的对标画像与 candidates.json 示例手工构造输入。
 
@@ -86,7 +86,8 @@ Agent 会自动进入 skill 流程；也可以参考 `examples/` 下的对标画
 
 ```
 talent-search-skill/
-├── SKILL.md                    # 主指令：五步流程（含查库/回写/复盘）+ 验证纪律 + 产出规范
+├── SKILL.md                    # 主指令（英文版）：五步流程（含查库/回写/复盘）+ 验证纪律 + 产出规范
+├── SKILL.zh-CN.md              # 主指令（中文版，内容一致）
 ├── references/
 │   ├── source-playbook.md      # 四通道检索策略、联系方式获取规则
 │   ├── school-list.md          # C9/港校/海外院校分级、知名实验室判定
@@ -99,7 +100,7 @@ talent-search-skill/
 ├── assets/
 │   └── demo.gif                # 工作流演示（数据为虚构）
 └── examples/
-    ├── 对标画像.example.md      # 对标画像三段式模板（人物虚构）
+    ├── persona.example.md       # 对标画像三段式模板（人物虚构）
     ├── candidates.example.json # Excel 输入数据结构示例
     ├── db-candidates.example.jsonl # 候选人库 schema 示例（人物虚构）
     ├── golden.example.jsonl    # 评测 golden set 格式示例（人物虚构）
