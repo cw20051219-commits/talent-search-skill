@@ -122,7 +122,7 @@ function search(dbPath, keywords) {
   if (!keywords.length) die('search 需要至少一个关键词');
   const kws = keywords.map((k) => k.toLowerCase());
   const records = loadDb(dbPath);
-  const fields = ['name', 'direction', 'current', 'highlight', 'education', 'experience', 'papers', 'labs', 'notes'];
+  const fields = ['name', 'direction', 'current', 'highlight', 'education', 'experience', 'papers', 'labs', 'notes', 'maimai'];
   const hits = records.filter((r) => kws.every((k) => fields.some((f) => String(r[f] || '').toLowerCase().includes(k))));
   if (!hits.length) { console.log(`未命中（关键词: ${keywords.join(' + ')}），库共 ${records.length} 人`); return; }
   console.log(`命中 ${hits.length} / ${records.length} 人（关键词: ${keywords.join(' + ')}）\n`);

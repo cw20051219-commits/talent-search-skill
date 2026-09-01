@@ -164,6 +164,13 @@ node scripts/db_upsert.mjs talent-research/_db/candidates.jsonl upsert <candidat
 
 去重键为 GitHub URL > 主页 URL > 姓名（URL 忽略大小写与末尾斜杠）；upsert 时非空新字段覆盖旧字段、空字段保留旧值。schema 详见脚本头部注释与 `examples/db-candidates.example.jsonl`。库含个人信息，已在 `.gitignore` 中排除，**切勿提交进 git**。
 
+**入库门槛与联系方式规则：**
+
+- 入库硬门槛：身份经**主页 ↔ GitHub（或权威机构页）双向有效验证**——单向信息或仅有搜索引擎结果不入库
+- 联系方式分级记录在 `notes` 字段：公开电话/微信（本人自行发布在主页/README/公开名片上的才算）> 公开邮箱 > 无直接联系方式
+- **脉脉直达链接**：候选人若有公开可访问的脉脉个人主页（`maimai.cn/u/...` 格式），单独写入 `maimai` 字段备注，可一键跳转触达；脉脉上的**报道文章页（article/detail）不是个人主页**，不要误标
+- 合规红线：电话/微信/脉脉信息只收**公开渠道**的，不爬脉脉私密聊天、不买数据、不进封闭群组
+
 ## 第 3 步：产出
 
 在 `talent-research/<主题>/` 下产出两个文件：
